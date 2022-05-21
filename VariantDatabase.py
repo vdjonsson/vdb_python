@@ -27,23 +27,34 @@ class VariantDatabase:
             self.input_buffer = sys.stdin  
             self.output_buffer = subprocess.PIPE
 
-            self.proc = subprocess.Popen(
-                args=[path],
-                stdin=subprocess.PIPE,  # pipe its STDIN so we can write to it
-                stdout= sys.stdout, # pipe directly to the output_buffer
-                cwd=working_dir,
-                universal_newlines=True, shell=True)
             VariantDatabase.__instance = self
 
             
     def concatenate_commands(self, commands:list):
 
-        str_comm = commands[2] + '= ' + commands[0] + ' ' + commands[1] + ' \n save ' + commands[2] + ' ' + commands[3] + ' \n exit \n'
+        command = commands[0]
+        args = commands[1]
+        cluster_name =commands[2]
+        saveto = commands[3]
         
+        if command =='from':
+            str_comm = cluster_name + '= ' + command + ' ' + args + ' \n save ' + cluster_name + ' ' + saveto + ' \n exit \n'
+
+        else:
+            dummy = 'd'
+            str_comm =  dummy + '= ' + command + ' ' + cluster_name + ' \n save ' + dummy + ' ' + saveto + ' \n exit \n'
+
+        print('***COMMAND TO VDB: \n', str_comm, '***')
         return str_comm
 
     
     def command(self, command:str, args:str, cluster_name:str, saveto:str):
+        self.proc = subprocess.Popen(
+            args=[self.path],
+            stdin=subprocess.PIPE,  # pipe its STDIN so we can write to it
+            stdout= sys.stdout, # pipe directly to the output_buffer
+            cwd=self.working_dir,
+            universal_newlines=True, shell=True)
 
         print('Sending ', command, ' to vdb')
         print("Input: ", end="", file=self.proc.stdout, flush=True)  # print the input prompt    
@@ -51,9 +62,8 @@ class VariantDatabase:
 
         x = self.proc.stdout
 
+        self.proc.terminate()
         data = self.get_data(command, saveto)
-        self.terminate()
-        
         return data
 
     def terminate(self): 
@@ -62,7 +72,7 @@ class VariantDatabase:
 
     def get_data (self,command, saveto):
 
-        print('get_data', command, saveto) 
+        print('GETDATA', command, saveto) 
         data = pd.DataFrame()
         header = None
         skiprows =[0]

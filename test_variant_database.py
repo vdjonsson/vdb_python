@@ -5,6 +5,8 @@ working_dir = '/Users/vanessajonsson/Google Drive/data/rep/vdb-main/'
 
 vdb = vd.VariantDatabase(path, working_dir)
 data = vdb.command(command = 'from', args= 'US', cluster_name = 'x',saveto='usa.csv')
+data = vdb.command(command = 'lineages', args= '', cluster_name = 'x',saveto='lineages_x.csv')
+
 
 print(data)
 
