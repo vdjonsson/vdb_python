@@ -1,20 +1,13 @@
-import VariantDatabase as vd
-
-path = '/Users/vanessajonsson/Google\ Drive/data/rep/vdb-main/v27_new'
-working_dir = '/Users/vanessajonsson/Google Drive/data/rep/vdb-main/'
-
-vdb = vd.VariantDatabase(path, working_dir)
-data = vdb.command(command = 'from', args= 'US', cluster_name = 'x',saveto='usa.csv')
-data = vdb.command(command = 'lineages', args= '', cluster_name = 'x',saveto='lineages_x.csv')
+import VariantDatabase as vdb
 
 
-print(data)
 
-''' Get instance test '''
-vdb_instance = vd.VariantDatabase.getInstance()
+commands = ["x = ca","y = lineages x","save y -"]
 
-print('Path of the Variant Database Singleton:', vdb_instance.path)
+for command in commands:
+    output = vdb.VariantDatabase().command(command)
+    truncatedOutput = (output[:300] + "...") if len(output) > 300 else output
+    print("\nOutput from command \""+command+"\":"+truncatedOutput)
 
-''' Singleton class test '''
-vdb_error = vd.VariantDatabase(path, working_dir)
 
+    

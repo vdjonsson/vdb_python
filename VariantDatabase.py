@@ -3,71 +3,63 @@ import sys
 import time
 import pandas as pd
 import io as io 
+import os
+import pty
 
 
-class VariantDatabase:
+workingDirectory ='/Users/vanessajonsson/Google Drive/data/rep/vdb_python-main/'
+vdbPath ='/Users/vanessajonsson/Google Drive/data/rep/vdb_python-main/v27_new'
+stdbufPath ='/Users/vanessajonsson/Google Drive/data/rep/vdb_python-main/stdbuf-osx-master/stdbuf'
 
-    __instance = None
-    @staticmethod 
-    def getInstance():
-        if VariantDatabase.__instance == None:
-            print('No instance of Variant Database created')
-        return VariantDatabase.__instance
+class VariantDatabase(object):
 
-  
-    def __init__(self, path:str, working_dir:str):
 
-        if VariantDatabase.__instance != None:
-            raise Exception("This class is a singleton!")
+    def __new__(self):
+        if not hasattr(self, 'instance'):
+            self.instance = super(VariantDatabase, self).__new__(self)
+            input_buffer = sys.stdin
+            output_buffer = sys.stdout
+            self.stdout_primary_fd, self.stdout_secondary_fd = pty.openpty()
+            self.proc = subprocess.Popen([stdbufPath,"-o0",vdbPath],
+                            stdin=subprocess.PIPE,           
+                            stdout=self.stdout_secondary_fd, 
+                            cwd=workingDirectory,
+                            universal_newlines=True,
+                            bufsize=0)
+            print("Starting vdb...")
+            loadingOutput = self.command(self,"",init=True)
+            for x in range(len(loadingOutput)):
+                if loadingOutput[x] == "E" and loadingOutput[x+1] == "n" and loadingOutput[x+2] == "t":
+                    break
+            loadingOutput = loadingOutput[:x-5]
+            print(loadingOutput)
+            self.command(self,"displayTextWithColor off")
+            self.command(self,"paging off")
+            self.command(self,"quiet on")
+        return self.instance
+
+
+    def command(self,command,init=False):
         
-        else:
-         
-            self.path = path
-            self.working_dir = working_dir 
-            self.input_buffer = sys.stdin  
-            self.output_buffer = subprocess.PIPE
-
-            VariantDatabase.__instance = self
-
-            
-    def concatenate_commands(self, commands:list):
-
-        command = commands[0]
-        args = commands[1]
-        cluster_name =commands[2]
-        saveto = commands[3]
+        ''' Executes vdb command and returns output in a string '''
         
-        if command =='from':
-            str_comm = cluster_name + '= ' + command + ' ' + args + ' \n save ' + cluster_name + ' ' + saveto + ' \n exit \n'
-
-        else:
-            dummy = 'd'
-            str_comm =  dummy + '= ' + command + ' ' + cluster_name + ' \n save ' + dummy + ' ' + saveto + ' \n exit \n'
-
-        print('***COMMAND TO VDB: \n', str_comm, '***')
-        return str_comm
-
-    
-    def command(self, command:str, args:str, cluster_name:str, saveto:str):
-        self.proc = subprocess.Popen(
-            args=[self.path],
-            stdin=subprocess.PIPE,  # pipe its STDIN so we can write to it
-            stdout= sys.stdout, # pipe directly to the output_buffer
-            cwd=self.working_dir,
-            universal_newlines=True, shell=True)
-
-        print('Sending ', command, ' to vdb')
-        print("Input: ", end="", file=self.proc.stdout, flush=True)  # print the input prompt    
-        print(self.concatenate_commands([command,args,cluster_name, saveto]) , file=self.proc.stdin, flush=True)  
-
-        x = self.proc.stdout
-
-        self.proc.terminate()
-        data = self.get_data(command, saveto)
-        return data
-
-    def terminate(self): 
-        self.proc.terminate()
+        if not init:
+            print(command, file=self.proc.stdin, flush=True)
+        output = bytes()
+        foundVDB = False
+        while True:
+            output += os.read(self.stdout_primary_fd, 10000)
+            for x1 in range(len(output)):
+                if output[x1] == 10:    # linefeed
+                    break
+            for x2 in range(len(output)):
+                if output[x2] == 118 and output[x2+1] == 100 and output[x2+2] == 98 and output[x2+3] == 62: 
+                    foundVDB = True
+                    break
+            if foundVDB:
+                break
+        trimmed = output[x1+1:x2-1]
+        return trimmed.decode("utf-8")
 
 
     def get_data (self,command, saveto):
@@ -89,6 +81,8 @@ class VariantDatabase:
 
 
     def parse_data_from(self, data):
+        
+        ''' Parses cluster data returned in from command ''' 
         tmp  = data.iloc[:,0].str.split(pat='|', expand=True)
         tmp.iloc[:,0] = data.iloc[:,0].str[1:]
         labels = ['Isolate','Virus ID', 'Date_collection']
@@ -105,7 +99,8 @@ class VariantDatabase:
     
 
     def parse_data_lineages(self, data):
-
+        
+        ''' Parses lineages data '''
         labels = ['Lineage', 'Count']
         data.iloc[:,2] = data.iloc[:,2].str[1:]
         data.iloc[:,127] = data.iloc[:,127].str[:-1]
@@ -115,7 +110,7 @@ class VariantDatabase:
 
 
     def parse_data_trends(self, data):
-
+        ''' Parses trends data '''
         labels = ['Time']
         data = data.rename(columns=dict(zip([data.columns[0]], labels)))
         return data
