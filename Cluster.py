@@ -3,20 +3,27 @@ import seaborn as sb
 import matplotlib.pyplot as plt
 import VariantDatabase as vd
 
+import inspect
+from random import randrange
+
 class Cluster:
-
-    def __init__(self, command:str, args:str, cluster_name:str, saveto:str=None):
-
+    def __init__(self, command:str,cluster_name:str='', verbose:bool=False):
         self.command = command
+             
+        self.vdb = vd.VariantDatabase()
         self.cluster_name = cluster_name
-        self.args = args
-        self.saveto=saveto 
+        
+        if len(cluster_name) == 0:
+             nameFromDeclaration = self.clusterNameFromDeclaration()
+        if len(nameFromDeclaration) > 0:
+            self.cluster_name = nameFromDeclaration
+            command = nameFromDeclaration + " = " + command
 
-        self.vdb = vd.VariantDatabase.getInstance()
-        print('VDB Path:', self.vdb.path)
+        self.data = self.vdb.command(command)
 
-        self.data = self.vdb.command(command = command, args= args, cluster_name = cluster_name,saveto=saveto)
-
+        if verbose:
+            print(self.data)
+             
         self.lineages_data = None
         self.trends_data = None
         self.frequencies_data = None 
@@ -26,6 +33,22 @@ class Cluster:
         self.consensus_data = None 
         #self.variants_data = None
            
+
+    def clusterNameFromDeclaration(self):
+        previous_frame = inspect.currentframe().f_back.f_back
+        (_,_,_,lines,_) = inspect.getframeinfo(previous_frame)
+        parts = lines[0].split()
+        assignment = False
+        if parts[1] == "=":
+            # need to parse lines[0] to verify that declaration is assigning a cluster
+            assignment = True
+        if assignment:
+            return (parts[0])
+        return ""
+
+    def tmpName(self):
+        return "tmp" + str(randrange(10000000))
+
 
     ''' Listing commands '''
     def countries(self):
@@ -39,8 +62,10 @@ class Cluster:
 
     def lineages(self):
         ' Returns the list of lineages and their occurrences in the cluster '
-        data = self.vdb.command(command = 'lineages', args= '', cluster_name = 'x',saveto='lineages_x.csv')
-        self.lineages_data = data
+        tmpName = self.tmpName()
+        self.vdb.command(tmpName+"=lineages "+self.cluster_name)
+        self.lineages_data = self.vdb.command("save "+tmpName+" -")
+        self.vdb.command("clear "+tmpName)
 
 
     def trends(self):
@@ -208,5 +233,4 @@ class Cluster:
     def sample(self, num_mutations:int=None):
         return 
  
-
 
