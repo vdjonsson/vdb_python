@@ -59,27 +59,13 @@ class VariantDatabase(object):
             if foundVDB:
                 break
         trimmed = output[x1+1:x2-1]
-        return trimmed.decode("utf-8")
+
+        out  = trimmed.decode("utf-8")
+
+        return out
 
 
-    def get_data (self,command, saveto):
-
-        print('GETDATA', command, saveto) 
-        data = pd.DataFrame()
-        header = None
-        skiprows =[0]
-
-        if command in ['consensus', 'patterns']:
-            skiprows = None
-
-        if command == 'trends':
-            header = 'infer'
-
-        tmp = pd.read_csv(self.working_dir + saveto, header=header, skiprows =skiprows)
-        data = self.parse_data(tmp, command = command)        
-        return data
-
-
+    
     def parse_data_from(self, data):
         
         ''' Parses cluster data returned in from command ''' 
@@ -98,33 +84,63 @@ class VariantDatabase(object):
         return tmp
     
 
-    def parse_data_lineages(self, data):
+    def parse_data_lineages(self, data, query_type='Lineage'):
         
         ''' Parses lineages data '''
-        labels = ['Lineage', 'Count']
+        data = pd.read_csv(io.StringIO(data), sep="\n").iloc[:,0].str.split(',', expand=True)
+        end = len(data.columns)-1
+        labels = [query_type, 'Count']
         data.iloc[:,2] = data.iloc[:,2].str[1:]
-        data.iloc[:,127] = data.iloc[:,127].str[:-1]
+        data.iloc[:,end] = data.iloc[:,end].str[:-1]
         data = data.rename(columns=dict(zip([0,1], labels)))
+        data = data.iloc[0:data.shape[0]-1,:]
+        data = data.set_index(query_type)
+        data = data.astype(float)
+        data = data.reset_index(query_type)
 
         return data
 
 
     def parse_data_trends(self, data):
+
         ''' Parses trends data '''
-        labels = ['Time']
-        data = data.rename(columns=dict(zip([data.columns[0]], labels)))
+        data = pd.read_csv(io.StringIO(data), sep="\n", header='infer', skiprows=[0]).iloc[0:-1,0].str.split(',', expand=True)
+
+        labels = list(data.iloc[0,:].values)
+
+        data = data.iloc[1:,:]
+        data.columns = labels
+        data = data.set_index('Month')
+        data = data.astype(float)
+
         return data
+
 
     def parse_data_freq(self, data):
-            
+
+        data = pd.read_csv(io.StringIO(data), sep="\n", header='infer', skiprows=[0]).iloc[0:-1,0].str.split(',', expand=True)
+
+        print(data)
+
         labels = ['Mutation', 'Frequency']
         data = data.rename(columns=dict(zip(data.columns, labels)))
-
+        data = data.set_index('Mutation')
+        data = data.astype(float)
+        data = data.reset_index('Mutation')
         return data
 
+
     def parse_data_weekly_monthly(self, data):
-        labels = ['Time', 'Count']
+
+        ''' Parses trends data '''
+        data = pd.read_csv(io.StringIO(data), sep="\n", header='infer', skiprows=[0]).iloc[0:-1,0].str.split(',', expand=True)
+
+        
+        labels = ['Date', 'Count']
         data = data.rename(columns=dict(zip(data.columns, labels)))
+        data = data.set_index('Date')
+        data = data.astype(float)
+    
         return data
 
     def parse_data_patterns(self, data):
@@ -138,11 +154,12 @@ class VariantDatabase(object):
         return data
         
     def parse_data(self, data, command='from'):
+        print('COMMAND', command)
 
-        if command == 'from': 
-            tmp  = self.parse_data_from(data)
-        elif command =='lineages':
-            tmp = self.parse_data_lineages(data)
+        tmp = data 
+        if 'from' in command:
+            #tmp  = self.parse_data_from(data)
+            print('parse data on cluster not implemented')
         elif command =='trends':
             tmp = self.parse_data_trends(data)
         elif command == 'freq':
@@ -153,5 +170,7 @@ class VariantDatabase(object):
             tmp = self.parse_data_patterns(data)
         elif command == 'variants':
             tmp = self.parse_data_variants(data)
-            
+        elif command in ['states', 'countries', 'lineages']:
+            labels = dict(zip(['states', 'countries', 'lineages'], ['State', 'Country', 'Lineage']))
+            tmp = self.parse_data_lineages(data, query_type=labels[command])
         return tmp

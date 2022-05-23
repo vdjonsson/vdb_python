@@ -52,45 +52,89 @@ class Cluster:
 
     ''' Listing commands '''
     def countries(self):
-        ' Returns the list of countries represented in this cluster'        
-        return list(self.data.Country.unique())
+        
+        ' Returns the list of countries represented in this cluster'
+        tmpName = self.tmpName()
 
+        self.vdb.command(tmpName+"=countries "+self.cluster_name)        
+        out = self.vdb.command("save "+tmpName+" -")
+        self.countries_data = self.vdb.parse_data(out, 'countries')
+        print(self.countries_data)
+        self.vdb.command("clear "+tmpName)
 
     def states(self):
+        
         ' Returns the list of states represented in this cluster'
-        return list(self.data.Division.unique())
+
+        tmpName = self.tmpName()
+
+        self.vdb.command(tmpName+"=states "+self.cluster_name)        
+        out = self.vdb.command("save "+tmpName+" -")
+        self.states_data = self.vdb.parse_data(out, 'states')
+        self.vdb.command("clear "+tmpName)
+
 
     def lineages(self):
+        
         ' Returns the list of lineages and their occurrences in the cluster '
+
         tmpName = self.tmpName()
-        self.vdb.command(tmpName+"=lineages "+self.cluster_name)
-        self.lineages_data = self.vdb.command("save "+tmpName+" -")
+        self.vdb.command(tmpName+"=lineages "+self.cluster_name)        
+        out = self.vdb.command("save "+tmpName+" -")
+        self.lineages_data = self.vdb.parse_data(out, 'lineages')
         self.vdb.command("clear "+tmpName)
 
 
     def trends(self):
-        ' Returns the list of lineages and their occurrences in the cluster '
         
-        data = self.vdb.command(command = 'trends', args= '', cluster_name = 'x',saveto='trends_x.csv')
-        self.trends_data = data
-
+        ' Returns the list of lineages and their trends '        
+        tmpName = self.tmpName()
+        self.vdb.command(tmpName+"=trends "+self.cluster_name)
+        out = self.vdb.command("save "+tmpName+" -")
+        self.trends_data = self.vdb.parse_data(out, 'trends')
+        print(self.trends_data)
+        self.vdb.command("clear "+tmpName)
+        
 
 
     def frequency(self):
+        
         ' Returns the list of lineages and their occurrences in the cluster '
-        data = self.vdb.command(command = 'freq', args= '', cluster_name = 'x',saveto='freq_x.csv')
-        self.freq_data = data
+
+        tmpName = self.tmpName()
+        self.vdb.command(tmpName+"=freq "+self.cluster_name)
+        out = self.vdb.command("save "+tmpName+" -")
+        self.freq_data = self.vdb.parse_data(out, 'freq')
+    
+        self.vdb.command("clear "+tmpName)
+
 
     def weekly(self):
         ' Returns the list of lineages and their occurrences in the cluster '
-        data = self.vdb.command(command = 'weekly', args= '', cluster_name = 'x',saveto='weekly_x.csv')
-        self.weekly_data = data
+
+        tmpName = self.tmpName()
+        self.vdb.command(tmpName+"=weekly "+self.cluster_name)
+        out = self.vdb.command("save "+tmpName+" -")
+
+        self.weekly_data = self.vdb.parse_data(out, 'weekly')
+
+        print(self.weekly_data)
+
+        self.vdb.command("clear "+tmpName)
+
         
     def monthly(self):
+        
         ' Returns the list of lineages and their occurrences in the cluster '
-        data = self.vdb.command(command = 'monthly', args= '', cluster_name = 'x',saveto='monthly_x.csv')
-        self.monthly_data = data
-    
+
+        tmpName = self.tmpName()
+        self.vdb.command(tmpName+"=monthly "+self.cluster_name)
+        out = self.vdb.command("save "+tmpName+" -")
+
+        self.monthly_data = self.vdb.parse_data(out, 'monthly')
+
+        self.vdb.command("clear "+tmpName)
+
 
     def clusters(self):
         print('clusters() function: Not implemented')
@@ -117,8 +161,9 @@ class Cluster:
 
     ''' Plotting functions '''
 
-    def plot (self,command='from', groupby=None, logy=False, top=20):
+    def plot (self,command='from', groupby=None, logy=False, top=5):
 
+        title = command + ', cluster:' + self.command #+ ',top: ' + str(top)
         if command == 'from':
             # Todo implement heatmap of mutations per virus
 
@@ -128,64 +173,78 @@ class Cluster:
             print(self.data.Division.unique()) 
             grouped = self.data.groupby(groupby).count().reset_index()
 
-            print(grouped) 
             plt.figure(figsize=(10,3))
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.barplot(data=grouped, x= groupby, y='Isolate')
             if logy:
                 plt.semilogy()
-            plt.title(command + ': ' + self.args + ' grouped by:' + groupby)
+            plt.title(title   + ' grouped by:' + groupby)
             plt.ylabel('Count, Isolates')
             plt.xticks(rotation=90)
 
         elif command == 'patterns':
-            print('Patterns from ', self.args, ':', self.patterns_data.values[0][0])
+            print('Patterns from ', ':', self.patterns_data.values[0][0])
         elif command == 'consensus':
-            print('Consensus from ', self.args, ':', self.consensus_data.values[0][0])
+            print('Consensus from ',  ':', self.consensus_data.values[0][0])
+            
         elif command == 'lineages':
-
-            plt.figure(figsize=(10,3))
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.barplot(data=self.lineages_data.iloc[0:top,:], x= 'Lineage', y='Count')
             if logy:
                 plt.semilogy()
-            plt.title(command + ': ' + self.args + ' lineages')
+
             plt.ylabel('Count, Lineages')
             plt.xticks(rotation=90)
-            
-            #print(self.lineages_data)
+
+        elif command == 'countries':
+            sb.set(context='paper', font_scale=1, style='ticks')
+            sb.barplot(data=self.countries_data,x= 'Country',y='Count')
+            if logy:
+                plt.semilogy()
+
+            plt.ylabel('Count')
+            plt.xticks(rotation=90)
+
+        elif command == 'states':
+            sb.set(context='paper', font_scale=1, style='ticks')
+            sb.barplot(data=self.states_data,x= 'State',y='Count')
+            if logy:
+                plt.semilogy()
+            plt.ylabel('Count')
+            plt.xticks(rotation=90)
+
         elif command == 'trends':
-            data = self.trends_data.set_index('Time')
+
+            ''' Plot over time with lineages ''' 
             plt.figure(figsize=(10,3))
             sb.set(context='paper', font_scale=1, style='ticks')
-            sb.lineplot(data=data.iloc[:,0:top])
-            plt.title(command + ': ' + self.args )
+            sb.lineplot(data =self.trends_data.iloc[:,0:top])
+
             plt.ylabel('Frequency, Lineages')
             plt.xticks(rotation=90)
+            
         elif command in  ['frequencies', 'freq']:
-
+            
             sb.set(context='paper', font_scale=1, style='ticks')
-            sb.barplot(data=self.freq_data, x='Mutation', y='Frequency')
-            plt.title(command + ': ' + self.args)
+            sb.barplot(data=self.freq_data.iloc[0:top,:], x='Mutation', y='Frequency')
+
             plt.ylabel('Frequency, Mutations')
             plt.xticks(rotation=90)
             
         elif command == 'weekly':
 
-            data = self.weekly_data.set_index('Time')
             plt.figure(figsize=(10,3))
             sb.set(context='paper', font_scale=1, style='ticks')
-            sb.lineplot(data=data)
-            plt.title(command + ': ' + self.args )
+            sb.lineplot(data=self.weekly_data)
             plt.ylabel('Count, Lineages')
             plt.xticks(rotation=90)
 
         elif command == 'monthly':
-            data = self.monthly_data.set_index('Time')
+
             plt.figure(figsize=(10,3))
             sb.set(context='paper', font_scale=1, style='ticks')
-            sb.lineplot(data=data)
-            plt.title(command + ': ' + self.args )
+            sb.lineplot(data=self.monthly_data)
+
             plt.ylabel('Count, Lineages')
             plt.xticks(rotation=90)
         elif command == 'variants':
@@ -194,7 +253,7 @@ class Cluster:
             sb.barplot(data=self.variants_data, x= 'Lineage', y='Count')
             if logy:
                 plt.semilogy()
-            plt.title(command + ': ' + self.args + ' Count')
+
             plt.ylabel('Count, Variants')
             plt.xticks(rotation=90)
 
@@ -202,11 +261,11 @@ class Cluster:
             sb.barplot(data=self.variants_data, x= 'Variant', y='Count')
             if logy:
                 plt.semilogy()
-            plt.title(command + ': ' + self.args + ' Count')
+
             plt.ylabel('Count, Variants')
             plt.xticks(rotation=90)
 
-
+        plt.title(title)
 
     ''' Filtering commands ''' 
     def containing(self, pattern:list=None):
