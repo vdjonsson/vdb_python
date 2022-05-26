@@ -7,17 +7,26 @@ import inspect
 from random import randrange
 
 class Cluster:
-    def __init__(self, command:str,cluster_name:str='', verbose:bool=False):
+    def __init__(self, command:str, cluster_name:str='', verbose=None):
         self.command = command
-             
         self.vdb = vd.VariantDatabase()
         self.cluster_name = cluster_name
-        
+
+        if verbose == None:
+            if self.vdb.verbose == True:
+                verbose = True
+            if self.vdb.verbose == False:
+                verbose = False
+
         if len(cluster_name) == 0:
-             nameFromDeclaration = self.clusterNameFromDeclaration()
-        if len(nameFromDeclaration) > 0:
-            self.cluster_name = nameFromDeclaration
-            command = nameFromDeclaration + " = " + command
+            nameFromDeclaration = self.clusterNameFromDeclaration()
+            if len(nameFromDeclaration) > 0:
+                self.cluster_name = nameFromDeclaration
+                command = nameFromDeclaration + " = " + command
+            else:
+                print("Cluster name missing")
+        else:
+            command = self.cluster_name + " = " + command
 
         self.data = self.vdb.command(command)
 
@@ -49,6 +58,27 @@ class Cluster:
     def tmpName(self):
         return "tmp" + str(randrange(10000000))
 
+    def __add__(self, other):
+        nameFromDeclaration = self.clusterNameFromDeclaration()
+        cmd = self.cluster_name + " + " + other.cluster_name
+        return Cluster(cmd, cluster_name=nameFromDeclaration)
+
+    def __sub__(self, other):
+        nameFromDeclaration = self.clusterNameFromDeclaration()
+        cmd = self.cluster_name + " - " + other.cluster_name
+        return Cluster(cmd, cluster_name=nameFromDeclaration)
+
+    def __and__(self, other):
+        nameFromDeclaration = self.clusterNameFromDeclaration()
+        cmd = self.cluster_name + " * " + other.cluster_name
+        return Cluster(cmd, cluster_name=nameFromDeclaration)
+
+    @property
+    def count(self):
+        return int(vd.V("count "+self.cluster_name).split()[3].replace(",",""))
+
+    def __len__(self):
+        return self.count
 
     ''' Listing commands '''
     def countries(self):
@@ -72,7 +102,7 @@ class Cluster:
         out = self.vdb.command("save "+tmpName+" -")
         self.states_data = self.vdb.parse_data(out, 'states')
         self.vdb.command("clear "+tmpName)
-
+        return self.states_data
 
     def lineages(self):
         
