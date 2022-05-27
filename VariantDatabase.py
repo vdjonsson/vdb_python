@@ -7,9 +7,9 @@ import os
 import pty
 
 
-workingDirectory ='/Users/vanessajonsson/Google Drive/data/rep/vdb_python-main/'
-vdbPath ='/Users/vanessajonsson/Google Drive/data/rep/vdb_python-main/v27_new'
-stdbufPath ='/Users/vanessajonsson/Google Drive/data/rep/vdb_python-main/stdbuf-osx-master/stdbuf'
+workingDirectory = "/Users/apw/Downloads/latest7/"
+vdbPath = "/Users/apw/Downloads/latest7/vdb"
+stdbufPath = "/Users/apw/Downloads/latest7/stdbuf"
 
 class VariantDatabase(object):
 
@@ -36,6 +36,8 @@ class VariantDatabase(object):
             self.command(self,"displayTextWithColor off")
             self.command(self,"paging off")
             self.command(self,"quiet on")
+            self.command(self,"listAccession on")
+            self.verbose = False
         return self.instance
 
 
@@ -64,7 +66,8 @@ class VariantDatabase(object):
 
         return out
 
-
+    def groupVariants(self):
+        self.command("group variants")
     
     def parse_data_from(self, data):
         
@@ -174,3 +177,9 @@ class VariantDatabase(object):
             labels = dict(zip(['states', 'countries', 'lineages'], ['State', 'Country', 'Lineage']))
             tmp = self.parse_data_lineages(data, query_type=labels[command])
         return tmp
+
+def v(cmd:str):
+    print(VariantDatabase().command(cmd))
+
+def V(cmd:str):
+    return VariantDatabase().command(cmd)
