@@ -13,6 +13,7 @@ stdbufPath = "/Users/apw/Downloads/latest7/stdbuf"
 
 class VariantDatabase(object):
 
+    anonCounter = 0
 
     def __new__(self):
         if not hasattr(self, 'instance'):
@@ -68,6 +69,10 @@ class VariantDatabase(object):
 
     def groupVariants(self):
         self.command("group variants")
+        
+    def nextAnonName(self):
+        self.anonCounter += 1
+        return "anon" + str(self.anonCounter)
     
     def parse_data_from(self, data):
         

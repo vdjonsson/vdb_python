@@ -2,34 +2,43 @@ import pandas as pd
 import seaborn as sb
 import matplotlib.pyplot as plt
 import VariantDatabase as vd
+import Pattern as pat
+import readline
+
+import sys
 
 import inspect
 from random import randrange
 
 class Cluster:
-    def __init__(self, command:str, cluster_name:str='', verbose=None):
+    def __init__(self, command:str, cluster_name:str='', verbose=None, indirect=False):
         self.command = command
         self.vdb = vd.VariantDatabase()
-        self.cluster_name = cluster_name # APW
-        self.verbose = False # APW 
+        self.cluster_name = cluster_name
+
         if verbose == None:
             if self.vdb.verbose == True:
                 self.verbose = True
             if self.vdb.verbose == False:
                 self.verbose = False
+        else:
+            self.verbose = verbose
 
-        if len(cluster_name) == 0:
-            nameFromDeclaration = self.clusterNameFromDeclaration()
+        if len(self.cluster_name) == 0:
+            nameFromDeclaration = self.clusterNameFromDeclaration(indirect = indirect)
             if len(nameFromDeclaration) > 0:
                 self.cluster_name = nameFromDeclaration
-                command = nameFromDeclaration + " = " + command
             else:
-                print("Cluster name missing")
-        else:
+                self.cluster_name = self.vdb.nextAnonName()
+#                print("Cluster name missing")
+                print("Anonymous cluster named " + self.cluster_name)
+                
+        if self.cluster_name != "world":
             command = self.cluster_name + " = " + command
-
-        self.data = self.vdb.command(command)
-
+            self.data = self.vdb.command(command)
+        else:
+            self.data = "world cluster defined"
+            
         if self.verbose:
             print(self.data)
              
@@ -47,23 +56,47 @@ class Cluster:
         print('---- Cluster ----')
         print('Name:', self.cluster_name)
         print('Definition:', self.command)
-        print('Num. clusters:', len(self.subclusters))
+        print('Number of isolates: ', "{:,}".format(self.count))
+        print('Num. subclusters:', len(self.subclusters))
 
         if len(self.subclusters) > 0 :
             print('---- Subcluster ----')
             for c in self.subclusters.values():
                 c.info()
             
-    def clusterNameFromDeclaration(self):
-        previous_frame = inspect.currentframe().f_back.f_back
+    def clusterNameFromDeclaration(self, indirect=False):
+        if not indirect:
+            previous_frame = inspect.currentframe().f_back.f_back
+        else:
+            previous_frame = inspect.currentframe().f_back.f_back.f_back
         (_,_,_,lines,_) = inspect.getframeinfo(previous_frame)
-        parts = lines[0].split()
-        assignment = False
-        if parts[1] == "=":
-            # need to parse lines[0] to verify that declaration is assigning a cluster
-            assignment = True
+                                
+        if lines != None:
+            line = lines[0]
+        else:
+            line = readline.get_history_item(readline.get_current_history_length())
+                
+        nameStart = -1
+        nameEnd = -1
+        equalsFound = 0
+        closeParen = 0
+        dotAfterFound = False
+        for i in range(len(line)):
+            if equalsFound == 0:
+                if nameStart == -1 and line[i] != " ":
+                    nameStart = i
+                if nameStart != -1 and nameEnd == -1 and (line[i] == " " or line[i] == "="):
+                    nameEnd = i
+            if line[i] == "=":
+                equalsFound += 1
+            if line[i] == ")":
+                closeParen += 1
+            if closeParen > 0 and line[i] == ".":
+                dotAfterFound = True
+        assignment = nameStart != -1 and nameEnd != -1 and equalsFound > 0 and not dotAfterFound
+                
         if assignment:
-            return (parts[0])
+            return line[nameStart:nameEnd]
         return ""
 
     def tmpName(self):
@@ -83,6 +116,17 @@ class Cluster:
         nameFromDeclaration = self.clusterNameFromDeclaration()
         cmd = self.cluster_name + " * " + other.cluster_name
         return Cluster(cmd, cluster_name=nameFromDeclaration)
+
+    def __eq__(self,other):
+        cmd = self.cluster_name + " == " + other.cluster_name
+        result = self.vdb.command(cmd)
+        rlen = len(result)
+        if rlen > 4:
+            if result[rlen-4] == "1":
+                return True
+            elif result[rlen-4] == "0":
+                return False
+        return None
 
     @property
     def count(self):
@@ -190,14 +234,17 @@ class Cluster:
 
     ''' Commands for mutation patterns '''
     def consensus(self):
-        data = self.vdb.command(command = 'consensus', args= '', cluster_name = 'x',saveto='consensus.csv')
-        self.consensus_data = data
+
+        command = 'consensus ' + self.cluster_name
+        pattern = pat.Pattern(command = command, indirect = True)
+        return pattern
 
 
     def patterns(self):
-        data = self.vdb.command(command = 'patterns', args= '', cluster_name = 'x',saveto='patterns.csv')
-        self.patterns_data = data
 
+        command = 'patterns ' + self.cluster_name
+        pattern = pat.Pattern(command = command, indirect = True)
+        return pattern
 
 
     ''' Plotting functions '''
@@ -313,39 +360,35 @@ class Cluster:
     def containing(self, pattern:list,str=None):
 
         pattern_str = pattern
-
         if isinstance(pattern, list):
             pattern_str = ''
             for p in pattern:
                 pattern_str = pattern_str + p + ' '
+        elif isinstance(pattern, pat.Pattern):
+            print(pattern)
+            pattern_str = pattern.__str__()
 
         command = self.cluster_name + ' containing ' + pattern_str
-        cluster = Cluster(command = command)
+        cluster = Cluster(command = command, indirect = True)
         #self.subclusters[cluster.cluster_name] = cluster #APW
-        
-        if self.verbose:
-            print(command)
-            print(cluster.data)
-            
+                    
         return cluster
 
     def notcontaining(self, pattern:list,str=None):
 
         pattern_str = pattern
-
         if isinstance(pattern, list):
             pattern_str = ''
             for p in pattern:
                 pattern_str = pattern_str + p + ' '
+        elif isinstance(pattern, pat.Pattern):
+            print(pattern)
+            pattern_str = pattern.__str__()
 
         command = self.cluster_name + ' not containing ' + pattern_str
-        cluster = Cluster(command = command)
-        #self.subclusters[cluster.cluster_name] = cluster
-        
-        if self.verbose:
-            print(command)
-            print(cluster.data)
-            
+        cluster = Cluster(command = command, indirect = True)
+        #self.subclusters[cluster.cluster_name] = cluster #APW
+                    
         return cluster
 
 
@@ -353,7 +396,7 @@ class Cluster:
 
         command = self.cluster_name + ' before ' + date
         print(command)
-        cluster = Cluster(command = command)
+        cluster = Cluster(command = command, indirect = True)
         #self.subclusters[cluster.cluster_name] = cluster
         # Create new cluster here and return it
         if self.verbose:
@@ -367,7 +410,7 @@ class Cluster:
         
         command = self.cluster_name + ' after ' + date
         print(command) 
-        cluster = Cluster(command = command)
+        cluster = Cluster(command = command, indirect = True)
         #self.subclusters[cluster.cluster_name] = cluster
         # Create new cluster here and return it
         if self.verbose:
@@ -390,7 +433,7 @@ class Cluster:
         command = self.cluster_name + ' range ' + pattern_str
         print('COMMAND')
         print(command)
-        cluster = Cluster(command = command)
+        cluster = Cluster(command = command, indirect = True)
         #self.subclusters[cluster.cluster_name] = cluster
         
         if self.verbose:
@@ -403,7 +446,7 @@ class Cluster:
     def lessthan(self, num_mutations:int=None):
         
         command = self.cluster_name + ' < ' + num_mutations
-        cluster = Cluster(command = command)
+        cluster = Cluster(command = command, indirect = True)
         #self.subclusters[cluster.cluster_name] = cluster
         if self.verbose:
             print(command)
@@ -416,7 +459,7 @@ class Cluster:
         
         command = self.cluster_name + ' > ' + num_mutations
         
-        cluster = Cluster(command = command)
+        cluster = Cluster(command = command, indirect = True)
         #self.subclusters[cluster.cluster_name] = cluster
         if self.verbose:
             print(command)
@@ -430,7 +473,7 @@ class Cluster:
             arg = epi_id
             
         command = self.cluster_name + ' named ' + arg
-        cluster = Cluster(command = command)
+        cluster = Cluster(command = command, indirect = True)
         #self.subclusters[cluster.cluster_name] = cluster
         
         if self.verbose:
@@ -443,7 +486,7 @@ class Cluster:
     def lineage(self, pango_lineage:str):
         
         command = self.cluster_name + ' lineage ' + pango_lineage
-        cluster = Cluster(command = command)
+        cluster = Cluster(command = command, indirect = True)
         #self.subclusters[cluster.cluster_name] = cluster
         
         if self.verbose:
@@ -455,7 +498,7 @@ class Cluster:
     def sample(self, fraction:float=None):
 
         command = self.cluster_name + ' sample ' + str(fraction)
-        cluster = Cluster(command = command)
+        cluster = Cluster(command = command, indirect = True)
         
         #self.subclusters[cluster.cluster_name] = cluster
 
@@ -466,4 +509,18 @@ class Cluster:
         return cluster
 
 
-
+def diff(item1,item2):
+    name1 = ""
+    name2 = ""
+    if isinstance(item1, Cluster):
+        name1 = item1.cluster_name
+    elif isinstance(item1, pat.Pattern):
+        name1 = item1.pattern_name
+    if isinstance(item2, Cluster):
+        name2 = item2.cluster_name
+    elif isinstance(item2, pat.Pattern):
+        name2 = item2.pattern_name
+    if len(name1) > 0 and len(name2) > 0:
+        command = "diff " + name1 + " " + name2
+        diffInfo = vd.VariantDatabase().command(command)
+        print(diffInfo)
