@@ -11,6 +11,10 @@ workingDirectory = "/Users/apw/Downloads/latest7/"
 vdbPath = "/Users/apw/Downloads/latest7/vdb"
 stdbufPath = "/Users/apw/Downloads/latest7/stdbuf"
 
+workingDirectory ='/Users/vanessajonsson/Google Drive/data/rep/vdb_python-main/'
+vdbPath ='/Users/vanessajonsson/Google Drive/data/rep/vdb_python-main/v27_new'
+stdbufPath ='/Users/vanessajonsson/Google Drive/data/rep/vdb_python-main/stdbuf-osx-master/stdbuf'
+
 class VariantDatabase(object):
 
     anonCounter = 0
@@ -27,6 +31,9 @@ class VariantDatabase(object):
                             cwd=workingDirectory,
                             universal_newlines=True,
                             bufsize=0)
+
+            self.clusters = dict()
+            
             print("Starting vdb...")
             loadingOutput = self.command(self,"",init=True)
             for x in range(len(loadingOutput)):
@@ -39,7 +46,43 @@ class VariantDatabase(object):
             self.command(self,"quiet on")
             self.command(self,"listAccession on")
             self.verbose = False
+
         return self.instance
+
+    def is_cluster_command(self, command):
+        cluster_commands = ['containing', 'notcontaining', 'before', 'after','range','lessthan','greaterthan','named','lineage', 'sample']
+        for c in cluster_commands :
+            if c in command:
+                return True
+        return False
+
+    def existing_cluster(self, cluster_name):
+        return cluster_name in list(self.clusters)
+
+    def parse_parent_cluster(self, command):
+        command_parsed = command.split(' ')
+        if self.is_cluster_command(command):
+            return command_parsed[2], command_parsed[0]
+        else:
+            return command_parsed[0], None
+
+    def update_clusters(self,command:str=None):
+
+        parent, child = self.parse_parent_cluster(command)
+        
+        if self.existing_cluster(parent):    
+            children = self.clusters[parent]
+            if child !=None: 
+                self.clusters[parent] = children.append(child)
+                self.clusters[parent] = children
+            else:
+                print('Warning: cluster', parent,'and all children will be deleted')
+                print('and replaced by', command)
+                del self.clusters[parent]
+                self.clusters[parent] = []
+        else:
+            self.clusters[parent] = []
+
 
 
     def command(self,command,init=False):
@@ -67,6 +110,8 @@ class VariantDatabase(object):
 
         return out
 
+
+            
     def groupVariants(self):
         self.command("group variants")
         
@@ -128,7 +173,6 @@ class VariantDatabase(object):
 
         data = pd.read_csv(io.StringIO(data), sep="\n", header='infer', skiprows=[0]).iloc[0:-1,0].str.split(',', expand=True)
 
-        print(data)
 
         labels = ['Mutation', 'Frequency']
         data = data.rename(columns=dict(zip(data.columns, labels)))
@@ -162,7 +206,6 @@ class VariantDatabase(object):
         return data
         
     def parse_data(self, data, command='from'):
-        print('COMMAND', command)
 
         tmp = data 
         if 'from' in command:

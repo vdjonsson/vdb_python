@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import VariantDatabase as vd
 import Pattern as pat
 import readline
-
+import numpy.random as np 
 import sys
 
 import inspect
@@ -15,7 +15,7 @@ class Cluster:
         self.command = command
         self.vdb = vd.VariantDatabase()
         self.cluster_name = cluster_name
-
+        
         if verbose == None:
             if self.vdb.verbose == True:
                 self.verbose = True
@@ -30,7 +30,6 @@ class Cluster:
                 self.cluster_name = nameFromDeclaration
             else:
                 self.cluster_name = self.vdb.nextAnonName()
-#                print("Cluster name missing")
                 print("Anonymous cluster named " + self.cluster_name)
                 
         if self.cluster_name != "world":
@@ -41,6 +40,8 @@ class Cluster:
             
         if self.verbose:
             print(self.data)
+
+        self.vdb.update_clusters(command=command)
              
         self.lineages_data = None
         self.trends_data = None
@@ -136,7 +137,7 @@ class Cluster:
         return self.count
 
     ''' Listing commands '''
-    def countries(self):
+    def countries(self, plot:bool=False, plot_args:dict=None):
         
         ' Returns the list of countries represented in this cluster'
         tmpName = self.tmpName()
@@ -144,10 +145,10 @@ class Cluster:
         self.vdb.command(tmpName+"=countries "+self.cluster_name)        
         out = self.vdb.command("save "+tmpName+" -")
         self.countries_data = self.vdb.parse_data(out, 'countries')
-        print(self.countries_data)
         self.vdb.command("clear "+tmpName)
+        return self.countries_data
 
-    def states(self):
+    def states(self, plot:bool=False, plot_args:dict=None):
         
         ' Returns the list of states represented in this cluster'
 
@@ -159,7 +160,7 @@ class Cluster:
         self.vdb.command("clear "+tmpName)
         return self.states_data
 
-    def lineages(self):
+    def lineages(self, plot:bool=False, plot_args:dict=None):
         
         ' Returns the list of lineages and their occurrences in the cluster '
 
@@ -168,21 +169,22 @@ class Cluster:
         out = self.vdb.command("save "+tmpName+" -")
         self.lineages_data = self.vdb.parse_data(out, 'lineages')
         self.vdb.command("clear "+tmpName)
+        return self.lineages_data
 
-
-    def trends(self):
+    def trends(self, plot:bool=False, plot_args:dict=None):
         
         ' Returns the list of lineages and their trends '        
         tmpName = self.tmpName()
         self.vdb.command(tmpName+"=trends "+self.cluster_name)
         out = self.vdb.command("save "+tmpName+" -")
         self.trends_data = self.vdb.parse_data(out, 'trends')
-        print(self.trends_data)
         self.vdb.command("clear "+tmpName)
-        
+        if plot:
+            self.plot('trends',args = plot_args)
+        return self.trends_data
 
 
-    def frequency(self):
+    def frequency(self, plot:bool=False, plot_args:dict=None):
         
         ' Returns the list of lineages and their occurrences in the cluster '
 
@@ -192,9 +194,14 @@ class Cluster:
         self.freq_data = self.vdb.parse_data(out, 'freq')
     
         self.vdb.command("clear "+tmpName)
+        
+        if plot:
+            self.plot(command='freq', args=plot_args)
+            
+        return self.freq_data
 
 
-    def weekly(self):
+    def weekly(self, plot:bool=False, plot_args:dict=None):
         ' Returns the list of lineages and their occurrences in the cluster '
 
         tmpName = self.tmpName()
@@ -202,13 +209,13 @@ class Cluster:
         out = self.vdb.command("save "+tmpName+" -")
 
         self.weekly_data = self.vdb.parse_data(out, 'weekly')
-
-        print(self.weekly_data)
-
         self.vdb.command("clear "+tmpName)
+        if plot:
+            self.plot(command='weekly', args=plot_args)
+        return self.weekly_data
 
         
-    def monthly(self):
+    def monthly(self, plot:bool=False, plot_args:dict=None):
         
         ' Returns the list of lineages and their occurrences in the cluster '
 
@@ -217,8 +224,10 @@ class Cluster:
         out = self.vdb.command("save "+tmpName+" -")
 
         self.monthly_data = self.vdb.parse_data(out, 'monthly')
-
         self.vdb.command("clear "+tmpName)
+        if plot:
+            self.plot(command='monthly', args=plot_args)
+        return self.monthly_data
 
 
     def clusters(self):
@@ -230,75 +239,70 @@ class Cluster:
     def variants (self):
         data = self.vdb.command(command = 'variants', args= '', cluster_name = '',saveto='variants.csv')
         self.variants_data = data
-
+        return self.variants_data 
 
     ''' Commands for mutation patterns '''
-    def consensus(self):
+    def consensus(self):#APW set consensus?
 
         command = 'consensus ' + self.cluster_name
         pattern = pat.Pattern(command = command, indirect = True)
         return pattern
 
 
-    def patterns(self):
-
+    def patterns(self): #APW set patterns?
+        
         command = 'patterns ' + self.cluster_name
         pattern = pat.Pattern(command = command, indirect = True)
-        return pattern
+        return pattern  
 
 
     ''' Plotting functions '''
 
-    def plot (self,command='from', groupby=None, logy=False, top=5):
+    def plot (self,command:str='from', groupby:str=None, logy:bool=False, top:int=5, save:bool=False,show=True, args:dict=None):
 
-        title = command + ', Cluster:' + self.cluster_name + ' Command:'+ self.command
+        title = command.upper() + '\n Cluster: ' + self.cluster_name + ' \n Cluster Definition: '+ self.command
+
+        print(args) 
+        if args != None: 
+            logy = args['logy']
+            top = args['top']
+            if 'save' in list(args): save = args['save']
+            if 'show' in list(args): show = args['show']
         
         if command == 'from':
-            # Todo implement heatmap of mutations per virus
-
             if groupby == 'state':
                 groupby = 'Division'
 
-            print(self.data.Division.unique()) 
             grouped = self.data.groupby(groupby).count().reset_index()
 
             plt.figure(figsize=(10,3))
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.barplot(data=grouped, x= groupby, y='Isolate')
-            if logy:
-                plt.semilogy()
             plt.title(title   + ' grouped by:' + groupby)
             plt.ylabel('Count, Isolates')
             plt.xticks(rotation=90)
 
         elif command == 'patterns':
             print('Patterns from ', ':', self.patterns_data.values[0][0])
+            
         elif command == 'consensus':
             print('Consensus from ',  ':', self.consensus_data.values[0][0])
             
         elif command == 'lineages':
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.barplot(data=self.lineages_data.iloc[0:top,:], x= 'Lineage', y='Count')
-            if logy:
-                plt.semilogy()
-
             plt.ylabel('Count, Lineages')
             plt.xticks(rotation=90)
 
         elif command == 'countries':
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.barplot(data=self.countries_data,x= 'Country',y='Count')
-            if logy:
-                plt.semilogy()
-
             plt.ylabel('Count')
             plt.xticks(rotation=90)
 
         elif command == 'states':
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.barplot(data=self.states_data,x= 'State',y='Count')
-            if logy:
-                plt.semilogy()
             plt.ylabel('Count')
             plt.xticks(rotation=90)
 
@@ -308,17 +312,17 @@ class Cluster:
             plt.figure(figsize=(10,3))
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.lineplot(data =self.trends_data.iloc[:,0:top])
-
             plt.ylabel('Frequency, Lineages')
             plt.xticks(rotation=90)
+            
             
         elif command in  ['frequencies', 'freq']:
             
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.barplot(data=self.freq_data.iloc[0:top,:], x='Mutation', y='Frequency')
-
             plt.ylabel('Frequency, Mutations')
             plt.xticks(rotation=90)
+            
             
         elif command == 'weekly':
 
@@ -340,21 +344,31 @@ class Cluster:
 
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.barplot(data=self.variants_data, x= 'Lineage', y='Count')
-            if logy:
-                plt.semilogy()
-
             plt.ylabel('Count, Variants')
             plt.xticks(rotation=90)
 
             sb.set(context='paper', font_scale=1, style='ticks')
             sb.barplot(data=self.variants_data, x= 'Variant', y='Count')
-            if logy:
-                plt.semilogy()
-
             plt.ylabel('Count, Variants')
             plt.xticks(rotation=90)
 
+        if logy:
+            plt.semilogy()
         plt.title(title)
+        plt.tight_layout()
+        
+        if save:
+
+            save_file = command + '_' + str(np.rand()) + '.png'
+            save_dir = './output/'
+            dpi = 150
+            if 'save_dir' in list(args) : save_dir = args['save_dir']
+            if 'dpi' in list(args) : dpi = args['dpi'] 
+                
+            plt.savefig(save_dir + save_file, dpi=dpi)
+
+        if show: 
+            plt.show()
 
     ''' Filtering commands ''' 
     def containing(self, pattern:list,str=None):
@@ -369,9 +383,9 @@ class Cluster:
             pattern_str = pattern.__str__()
 
         command = self.cluster_name + ' containing ' + pattern_str
-        cluster = Cluster(command = command, indirect = True)
-        #self.subclusters[cluster.cluster_name] = cluster #APW
-                    
+        cluster = Cluster(command = command, indirect = True,cluster_name ='scc1')
+        self.subclusters[cluster.cluster_name] = cluster 
+
         return cluster
 
     def notcontaining(self, pattern:list,str=None):
@@ -386,8 +400,8 @@ class Cluster:
             pattern_str = pattern.__str__()
 
         command = self.cluster_name + ' not containing ' + pattern_str
-        cluster = Cluster(command = command, indirect = True)
-        #self.subclusters[cluster.cluster_name] = cluster #APW
+        cluster = Cluster(command = command, indirect = True,cluster_name ='scnc1')
+        self.subclusters[cluster.cluster_name] = cluster 
                     
         return cluster
 
@@ -396,9 +410,9 @@ class Cluster:
 
         command = self.cluster_name + ' before ' + date
         print(command)
-        cluster = Cluster(command = command, indirect = True)
-        #self.subclusters[cluster.cluster_name] = cluster
-        # Create new cluster here and return it
+        cluster = Cluster(command = command, indirect = True, cluster_name='scb1')
+        self.subclusters[cluster.cluster_name] = cluster
+
         if self.verbose:
             print(command)
             print(cluster.data)
@@ -410,9 +424,9 @@ class Cluster:
         
         command = self.cluster_name + ' after ' + date
         print(command) 
-        cluster = Cluster(command = command, indirect = True)
-        #self.subclusters[cluster.cluster_name] = cluster
-        # Create new cluster here and return it
+        cluster = Cluster(command = command, indirect = True, cluster_name='sca1')
+        self.subclusters[cluster.cluster_name] = cluster
+
         if self.verbose:
             print(command)
             print(cluster.data)
@@ -431,10 +445,8 @@ class Cluster:
             pattern_str=pattern_str[:-1]
 
         command = self.cluster_name + ' range ' + pattern_str
-        print('COMMAND')
-        print(command)
-        cluster = Cluster(command = command, indirect = True)
-        #self.subclusters[cluster.cluster_name] = cluster
+        cluster = Cluster(command = command, indirect = True, cluster_name='scr1')
+        self.subclusters[cluster.cluster_name] = cluster
         
         if self.verbose:
             print(command)
@@ -446,8 +458,8 @@ class Cluster:
     def lessthan(self, num_mutations:int=None):
         
         command = self.cluster_name + ' < ' + num_mutations
-        cluster = Cluster(command = command, indirect = True)
-        #self.subclusters[cluster.cluster_name] = cluster
+        cluster = Cluster(command = command, indirect = True, cluster_name='sclt1')
+        self.subclusters[cluster.cluster_name] = cluster
         if self.verbose:
             print(command)
             print(cluster.data)
@@ -455,12 +467,11 @@ class Cluster:
         return cluster
 
     
-    def morethan(self, num_mutations:int=None):
+    def greaterthan(self, num_mutations:int=None):
         
         command = self.cluster_name + ' > ' + num_mutations
-        
-        cluster = Cluster(command = command, indirect = True)
-        #self.subclusters[cluster.cluster_name] = cluster
+        cluster = Cluster(command = command, indirect = True,cluster_name='scmt1')
+        self.subclusters[cluster.cluster_name] = cluster
         if self.verbose:
             print(command)
             print(cluster.data)
@@ -473,8 +484,8 @@ class Cluster:
             arg = epi_id
             
         command = self.cluster_name + ' named ' + arg
-        cluster = Cluster(command = command, indirect = True)
-        #self.subclusters[cluster.cluster_name] = cluster
+        cluster = Cluster(command = command, indirect = True, cluster_name='scna1')
+        self.subclusters[cluster.cluster_name] = cluster
         
         if self.verbose:
             print(command)
@@ -486,8 +497,8 @@ class Cluster:
     def lineage(self, pango_lineage:str):
         
         command = self.cluster_name + ' lineage ' + pango_lineage
-        cluster = Cluster(command = command, indirect = True)
-        #self.subclusters[cluster.cluster_name] = cluster
+        cluster = Cluster(command = command, indirect = True, cluster_name ='scli1')
+        self.subclusters[cluster.cluster_name] = cluster
         
         if self.verbose:
             print(command)
@@ -498,9 +509,8 @@ class Cluster:
     def sample(self, fraction:float=None):
 
         command = self.cluster_name + ' sample ' + str(fraction)
-        cluster = Cluster(command = command, indirect = True)
-        
-        #self.subclusters[cluster.cluster_name] = cluster
+        cluster = Cluster(command = command, indirect = True, cluster_name = 'scsam1')
+        self.subclusters[cluster.cluster_name] = cluster
 
         if self.verbose:
             print(command)
