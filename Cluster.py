@@ -51,7 +51,15 @@ class Cluster:
         self.patterns_data = None
         self.consensus_data = None 
         self.subclusters = dict()
-           
+        self.default_plot_args = {'context':'paper',
+                                  'figsize':(10,3), 'linewidth':1.5,
+                                  'save':False,
+                                  'save_dir':'./output/','dpi':150,
+                                  'show':True, 
+                                  'logy':False,
+                                  'top':5}
+
+                                  
 
     def info(self):
         print('---- Cluster ----')
@@ -76,6 +84,8 @@ class Cluster:
             line = lines[0]
         else:
             line = readline.get_history_item(readline.get_current_history_length())
+            if line == None:
+                return ""
                 
         nameStart = -1
         nameEnd = -1
@@ -92,6 +102,8 @@ class Cluster:
                 equalsFound += 1
             if line[i] == ")":
                 closeParen += 1
+            if line[i] == "#":
+                break
             if closeParen > 0 and line[i] == ".":
                 dotAfterFound = True
         assignment = nameStart != -1 and nameEnd != -1 and equalsFound > 0 and not dotAfterFound
@@ -258,17 +270,27 @@ class Cluster:
 
     ''' Plotting functions '''
 
-    def plot (self,command:str='from', groupby:str=None, logy:bool=False, top:int=5, save:bool=False,show=True, args:dict=None):
+    
+    def plot (self,command:str='from', groupby:str=None, logy:bool=None, top:int=None, save:bool=None,show:bool=None, dpi:int=None, save_dir:str=None, save_file:str=None, figsize=None, linewidth=None, args:dict=None):
 
         title = command.upper() + '\n Cluster: ' + self.cluster_name + ' \n Cluster Definition: '+ self.command
+    
+        if args == None:
+            args = self.default_plot_args
 
-        print(args) 
-        if args != None: 
-            logy = args['logy']
-            top = args['top']
-            if 'save' in list(args): save = args['save']
-            if 'show' in list(args): show = args['show']
+        if logy==None: logy = self.default_plot_args['logy']
+        if top==None: top = self.default_plot_args['top']
+        if save==None: save = self.default_plot_args['save']
+        if save: 
+            if save_dir==None: save_dir = self.default_plot_args['save_dir']
+            if save_file==None: save_file = command + '_' + str(np.rand()) + '.png'
+        if show==None: show = self.default_plot_args['show']
+        if dpi==None: dpi = self.default_plot_args['dpi']
+        if figsize==None: show = self.default_plot_args['figsize']
+        if linewidth==None: linewidth = self.default_plot_args['linewidth']
         
+        
+        sb.set(context=self.default_plot_args['context'])
         if command == 'from':
             if groupby == 'state':
                 groupby = 'Division'
@@ -309,9 +331,9 @@ class Cluster:
         elif command == 'trends':
 
             ''' Plot over time with lineages ''' 
-            plt.figure(figsize=(10,3))
+            plt.figure(figsize=figsize)
             sb.set(context='paper', font_scale=1, style='ticks')
-            sb.lineplot(data =self.trends_data.iloc[:,0:top])
+            sb.lineplot(data =self.trends_data.iloc[:,0:top], lw=linewidth)
             plt.ylabel('Frequency, Lineages')
             plt.xticks(rotation=90)
             
@@ -354,19 +376,12 @@ class Cluster:
 
         if logy:
             plt.semilogy()
+            
         plt.title(title)
         plt.tight_layout()
         
         if save:
-
-            save_file = command + '_' + str(np.rand()) + '.png'
-            save_dir = './output/'
-            dpi = 150
-            if 'save_dir' in list(args) : save_dir = args['save_dir']
-            if 'dpi' in list(args) : dpi = args['dpi'] 
-                
             plt.savefig(save_dir + save_file, dpi=dpi)
-
         if show: 
             plt.show()
 
@@ -383,7 +398,7 @@ class Cluster:
             pattern_str = pattern.__str__()
 
         command = self.cluster_name + ' containing ' + pattern_str
-        cluster = Cluster(command = command, indirect = True,cluster_name ='scc1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster 
 
         return cluster
@@ -400,7 +415,7 @@ class Cluster:
             pattern_str = pattern.__str__()
 
         command = self.cluster_name + ' not containing ' + pattern_str
-        cluster = Cluster(command = command, indirect = True,cluster_name ='scnc1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster 
                     
         return cluster
@@ -410,7 +425,7 @@ class Cluster:
 
         command = self.cluster_name + ' before ' + date
         print(command)
-        cluster = Cluster(command = command, indirect = True, cluster_name='scb1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster
 
         if self.verbose:
@@ -424,7 +439,7 @@ class Cluster:
         
         command = self.cluster_name + ' after ' + date
         print(command) 
-        cluster = Cluster(command = command, indirect = True, cluster_name='sca1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster
 
         if self.verbose:
@@ -445,7 +460,7 @@ class Cluster:
             pattern_str=pattern_str[:-1]
 
         command = self.cluster_name + ' range ' + pattern_str
-        cluster = Cluster(command = command, indirect = True, cluster_name='scr1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster
         
         if self.verbose:
@@ -458,7 +473,7 @@ class Cluster:
     def lessthan(self, num_mutations:int=None):
         
         command = self.cluster_name + ' < ' + num_mutations
-        cluster = Cluster(command = command, indirect = True, cluster_name='sclt1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster
         if self.verbose:
             print(command)
@@ -470,7 +485,7 @@ class Cluster:
     def greaterthan(self, num_mutations:int=None):
         
         command = self.cluster_name + ' > ' + num_mutations
-        cluster = Cluster(command = command, indirect = True,cluster_name='scmt1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster
         if self.verbose:
             print(command)
@@ -484,7 +499,7 @@ class Cluster:
             arg = epi_id
             
         command = self.cluster_name + ' named ' + arg
-        cluster = Cluster(command = command, indirect = True, cluster_name='scna1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster
         
         if self.verbose:
@@ -497,7 +512,7 @@ class Cluster:
     def lineage(self, pango_lineage:str):
         
         command = self.cluster_name + ' lineage ' + pango_lineage
-        cluster = Cluster(command = command, indirect = True, cluster_name ='scli1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster
         
         if self.verbose:
@@ -509,7 +524,7 @@ class Cluster:
     def sample(self, fraction:float=None):
 
         command = self.cluster_name + ' sample ' + str(fraction)
-        cluster = Cluster(command = command, indirect = True, cluster_name = 'scsam1')
+        cluster = Cluster(command = command, indirect = True)
         self.subclusters[cluster.cluster_name] = cluster
 
         if self.verbose:
