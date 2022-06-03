@@ -72,7 +72,9 @@ class Pattern:
             line = lines[0]
         else:
             line = readline.get_history_item(readline.get_current_history_length())
-        
+            if line == None:
+                return ""
+
         nameStart = -1
         nameEnd = -1
         equalsFound = 0
@@ -88,6 +90,8 @@ class Pattern:
                 equalsFound += 1
             if line[i] == ")":
                 closeParen += 1
+            if line[i] == "#":
+                break
             if closeParen > 0 and line[i] == ".":
                 dotAfterFound = True
         assignment = nameStart != -1 and nameEnd != -1 and equalsFound > 0 and not dotAfterFound
